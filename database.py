@@ -1,5 +1,5 @@
 import pymysql
-
+from custom_logger import info
 
 def get_mysql_password(file_path):
     with open(file_path, 'r') as file:
@@ -21,8 +21,11 @@ def close_mysql_connection():
         connection.close()
 
 
-def update_music_analysis(music_id):
+def update_music_analysis(music_id, highest_pitch, lowest_pitch):
     with connection.cursor() as cursor:
-        sql = f"UPDATE music_analysis SET status = 'COMPLETE' WHERE music_id = {music_id}"
+        sql = (f"UPDATE music_analysis "
+               f"SET status = 'COMPLETE', highest_pitch = {highest_pitch}, lowest_pitch = {lowest_pitch} "
+               f"WHERE music_id = {music_id}")
+        info("[SQL] " + sql)
         cursor.execute(sql)
         connection.commit()

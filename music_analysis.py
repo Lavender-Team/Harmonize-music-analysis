@@ -14,7 +14,7 @@ EXPECTED_SAMPLE_RATE = 16000
 MAX_ABS_INT16 = 32768.0
 model = None
 
-
+# SPICE 모델을 불러옵니다. (최초 1회 실행)
 def load_model():
     global model
     # Tensorflow 1 모델 사용으로 인한 warning 문고 표시 안함
@@ -24,6 +24,7 @@ def load_model():
     return
 
 
+# 오디오 frame rate를 16000으로 바꿔 새로운 wav 파일을 만듭니다.
 def convert_audio_for_model(music_id, path, filename):
     audio = AudioSegment.from_file(path + filename)
     audio = audio.set_frame_rate(EXPECTED_SAMPLE_RATE).set_channels(1)
@@ -34,6 +35,7 @@ def convert_audio_for_model(music_id, path, filename):
     return
 
 
+# 오디오 파일을 SPICE 모델에 넣어 시간에 따른 음계를 예측한 뒤 xlsx 파일로 저장합니다.
 def extract_music_pitch(music_id, confidence, path):
     # 오디오 파일 로드
     sample_rate, audio_samples = wavfile.read(path + f'{music_id}/converted.wav', 'rb')
@@ -78,8 +80,19 @@ def extract_music_pitch(music_id, confidence, path):
     return final_outputs
 
 
+# 예측된 음계에서 최고음 최저음 등의 정보를 찾은 뒤 데이터베이스에 저장합니다.
 def analysis_music(music_id, final_outputs):
-    update_music_analysis(music_id)
+    # 자료형 변환
+    times = [output[1] for output in final_outputs]
+    pitchs = [output[2] for output in final_outputs]
+    times = np.array(times)
+    pitchs = np.array(pitchs)
+
+    # 대표값 추출
+    highest_pitch = np.max(pitchs)
+    lowest_pitch = np.min(pitchs[pitchs != 0])
+    
+    update_music_analysis(music_id, highest_pitch, lowest_pitch)
     return
 
 
