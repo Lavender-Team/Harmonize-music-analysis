@@ -68,17 +68,19 @@ def extract_music_pitch(music_id, confidence, path):
                                zip(indices, pitch_outputs, confidence_outputs)]
 
     outputs_index, outputs_pitch, outputs_confident = zip(*confident_pitch_outputs)
+    
+    # 삭제된 Pitch 값을 저장하기 위한 컬럼
+    outputs_deleted = [None] * len(outputs_index)
 
     # 초 단위 추가, 헤르츠 값으로 변환
-    final_outputs = [(i, t, p) for i, t, p in
-                     zip(outputs_index, index_to_time(outputs_index), value_to_hertz(outputs_pitch))]
+    final_outputs = [(i, t, p, d) for i, t, p, d in
+                     zip(outputs_index, index_to_time(outputs_index), value_to_hertz(outputs_pitch), outputs_deleted)]
 
     # xlsx 파일로 출력
-    df = pd.DataFrame(final_outputs, columns=['index', 'time', 'pitch_point'])
-    df.to_excel(path + f'{music_id}/pitch.xlsx', sheet_name='pitch')
+    df = pd.DataFrame(final_outputs, columns=['index', 'time', 'pitch', 'deleted'])
+    df.to_excel(path + f'{music_id}/pitch.xlsx', sheet_name='pitch', index=False)
 
     return final_outputs
-
 
 # 예측된 음계에서 최고음 최저음 등의 정보를 찾은 뒤 데이터베이스에 저장합니다.
 def analysis_music(music_id, final_outputs):
@@ -94,6 +96,26 @@ def analysis_music(music_id, final_outputs):
     
     update_music_analysis(music_id, highest_pitch, lowest_pitch)
     return
+
+
+# 이상치 Pitch 값 하나를 삭제
+def delete_pitch(music_id, time, path):
+    # 저장된 xlsx 파일 DataFrame으로 불러오기
+    df = pd.read_excel(path + f'{music_id}/pitch.xlsx')
+    
+    # 삭제할 시간대의 인덱스 찾기
+    index = df.index[df['time'] == time].tolist()
+    
+    # 삭제할 값을 deleted 컬럼으로 옮기고 0으로 바꾸기 및 저장
+    if df.at[index[0], 'pitch'] != 0:
+        df.at[index[0], 'deleted'] = df.at[index[0], 'pitch']
+        df.at[index[0], 'pitch'] = 0
+        df.to_excel(path + f'{music_id}/pitch.xlsx', sheet_name='pitch', index=False)
+
+    # 재분석을 진행하기 위해 튜플 리스트로 바꿔 반환
+    final_outputs = [(i, t, p, d) for i, t, p, d in
+                     zip(df['index'].tolist(), df['time'].tolist(), df['pitch'].tolist(), df['deleted'].tolist())]
+    return final_outputs
 
 
 def index_to_time(values):

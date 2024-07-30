@@ -1,7 +1,7 @@
 from kafka import KafkaConsumer
 
 import json
-from music_analysis import load_model, convert_audio_for_model, extract_music_pitch, analysis_music
+from music_analysis import load_model, convert_audio_for_model, extract_music_pitch, analysis_music, delete_pitch
 from database import close_mysql_connection
 from custom_logger import info
 
@@ -17,7 +17,7 @@ consumer = KafkaConsumer(
 info('[Start] consumer started')
 
 load_model()
-info('[Model] spice model loaded')
+info('[Model] SPICE model loaded')
 
 try:
     while True:
@@ -31,14 +31,23 @@ try:
 
                     request = message.value
 
-                    audio = convert_audio_for_model(request['music_id'], request['path'], request['filename'])
-                    info(f"[Preprocess] Music({request['music_id']}) audio converted")
+                    if request['command'] == 'analysis':
+                        audio = convert_audio_for_model(request['music_id'], request['path'], request['filename'])
+                        info(f"[Preprocess] Music({request['music_id']}) audio converted")
 
-                    final_outputs = extract_music_pitch(request['music_id'], request['confidence'], request['path'])
-                    info(f"[Model] Music({request['music_id']}) pitch extracted")
+                        final_outputs = extract_music_pitch(request['music_id'], request['confidence'], request['path'])
+                        info(f"[Model] Music({request['music_id']}) pitch extracted")
 
-                    analysis_music(request['music_id'], final_outputs)
-                    info(f"[Model] Music({request['music_id']}) analysis completed")
+                        analysis_music(request['music_id'], final_outputs)
+                        info(f"[Model] Music({request['music_id']}) analysis completed")
+
+                    elif request['command'] == 'delete':
+                        final_outputs = delete_pitch(request['music_id'], request['time'], request['path'])
+                        info(f"[Model] Music({request['music_id']}) a pitch value deleted")
+
+                        analysis_music(request['music_id'], final_outputs)
+                        info(f"[Model] Music({request['music_id']}) re-analysis completed")
+
 
         # else:
         #    print("메시지 없음, 계속 대기 중...")
@@ -50,4 +59,4 @@ except KeyboardInterrupt:
 finally:
     consumer.close()
     close_mysql_connection()
-    info('[End] consumer stoped')
+    info('[End] consumer stopped')
