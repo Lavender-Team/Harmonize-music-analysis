@@ -1,7 +1,7 @@
 from kafka import KafkaConsumer
 
 import json
-from music_analysis import load_model, convert_audio_for_model, extract_music_pitch, analysis_music, delete_pitch
+from music_analysis import load_model, convert_audio_for_model, extract_music_pitch, analysis_music, save_pitch_audio, delete_pitch, delete_pitch_range
 from database import close_mysql_connection
 from custom_logger import info
 
@@ -32,6 +32,7 @@ try:
                     request = message.value
 
                     if request['command'] == 'analysis':
+                        # 음악 분석 요청
                         audio = convert_audio_for_model(request['music_id'], request['path'], request['filename'])
                         info(f"[Preprocess] Music({request['music_id']}) audio converted")
 
@@ -41,13 +42,30 @@ try:
                         analysis_music(request['music_id'], final_outputs)
                         info(f"[Model] Music({request['music_id']}) analysis completed")
 
-                    elif request['command'] == 'delete':
+                        save_pitch_audio(request['music_id'], final_outputs, request['path'])
+                        info(f"[Model] Music({request['music_id']}) output audio save completed")
+
+                    elif request['command'] == 'delete' and request['action'] == 'value':
+                        # 특정 Pitch 값 제거 요청
                         final_outputs = delete_pitch(request['music_id'], request['time'], request['path'])
-                        info(f"[Model] Music({request['music_id']}) a pitch value deleted")
+                        info(f"[Model] Music({request['music_id']}) a pitch VALUE deleted")
 
                         analysis_music(request['music_id'], final_outputs)
                         info(f"[Model] Music({request['music_id']}) re-analysis completed")
 
+                        save_pitch_audio(request['music_id'], final_outputs, request['path'])
+                        info(f"[Model] Music({request['music_id']}) output audio re-save completed")
+
+                    elif request['command'] == 'delete' and request['action'] == 'range':
+                        # 특정 Pitch 범위 제거 요청
+                        final_outputs = delete_pitch_range(request['music_id'], request['time'], request['range'], request['path'])
+                        info(f"[Model] Music({request['music_id']}) a pitch RANGE deleted")
+
+                        analysis_music(request['music_id'], final_outputs)
+                        info(f"[Model] Music({request['music_id']}) re-analysis completed")
+
+                        save_pitch_audio(request['music_id'], final_outputs, request['path'])
+                        info(f"[Model] Music({request['music_id']}) output audio re-save completed")
 
         # else:
         #    print("메시지 없음, 계속 대기 중...")
