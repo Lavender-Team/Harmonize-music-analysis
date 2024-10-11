@@ -1,7 +1,7 @@
 from kafka import KafkaConsumer
 
 import json
-from music_analysis import load_model, convert_audio_for_model, extract_music_pitch, analysis_music, save_pitch_audio, delete_pitch, delete_pitch_range
+from music_analysis import *
 from database import close_mysql_connection
 from custom_logger import info
 
@@ -40,32 +40,43 @@ try:
                         info(f"[Model] Music({request['music_id']}) pitch extracted")
 
                         analysis_music(request['music_id'], final_outputs)
-                        info(f"[Model] Music({request['music_id']}) analysis completed")
+                        info(f"[Process] Music({request['music_id']}) analysis completed")
 
                         save_pitch_audio(request['music_id'], final_outputs, request['path'])
-                        info(f"[Model] Music({request['music_id']}) output audio save completed")
+                        info(f"[Audio] Music({request['music_id']}) output audio save completed")
+
+                    elif request['command'] == 'analysis_offline':
+                        # 직접 분석 결과 xlsx 파일 업로드 후 분석만 실행
+                        final_outputs = load_pitch(request['music_id'], request['path'])
+                        info(f"[Load] Music({request['music_id']}) a pitch loaded")
+
+                        analysis_music(request['music_id'], final_outputs)
+                        info(f"[Process] Music({request['music_id']}) analysis completed")
+
+                        save_pitch_audio(request['music_id'], final_outputs, request['path'])
+                        info(f"[Audio] Music({request['music_id']}) output audio save completed")
 
                     elif request['command'] == 'delete' and request['action'] == 'value':
                         # 특정 Pitch 값 제거 요청
                         final_outputs = delete_pitch(request['music_id'], request['time'], request['path'])
-                        info(f"[Model] Music({request['music_id']}) a pitch VALUE deleted")
+                        info(f"[Edit] Music({request['music_id']}) a pitch VALUE deleted")
 
                         analysis_music(request['music_id'], final_outputs)
-                        info(f"[Model] Music({request['music_id']}) re-analysis completed")
+                        info(f"[Process] Music({request['music_id']}) re-analysis completed")
 
                         save_pitch_audio(request['music_id'], final_outputs, request['path'])
-                        info(f"[Model] Music({request['music_id']}) output audio re-save completed")
+                        info(f"[Audio] Music({request['music_id']}) output audio re-save completed")
 
                     elif request['command'] == 'delete' and request['action'] == 'range':
                         # 특정 Pitch 범위 제거 요청
                         final_outputs = delete_pitch_range(request['music_id'], request['time'], request['range'], request['path'])
-                        info(f"[Model] Music({request['music_id']}) a pitch RANGE deleted")
+                        info(f"[Edit] Music({request['music_id']}) a pitch RANGE deleted")
 
                         analysis_music(request['music_id'], final_outputs)
-                        info(f"[Model] Music({request['music_id']}) re-analysis completed")
+                        info(f"[Process] Music({request['music_id']}) re-analysis completed")
 
                         save_pitch_audio(request['music_id'], final_outputs, request['path'])
-                        info(f"[Model] Music({request['music_id']}) output audio re-save completed")
+                        info(f"[Audio] Music({request['music_id']}) output audio re-save completed")
 
         # else:
         #    print("메시지 없음, 계속 대기 중...")

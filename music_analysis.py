@@ -9,7 +9,7 @@ from scipy.io import wavfile
 from scipy.io.wavfile import write
 from pydub import AudioSegment
 
-from database import update_music_analysis
+from database import update_music_analysis, is_artist_female_only
 
 EXPECTED_SAMPLE_RATE = 16000
 MAX_ABS_INT16 = 32768.0
@@ -118,8 +118,26 @@ def analysis_music(music_id, final_outputs):
     # 대표값 추출
     highest_pitch = np.max(pitchs)
     lowest_pitch = np.min(pitchs[pitchs != 0])
-    
-    update_music_analysis(music_id, highest_pitch, lowest_pitch)
+
+    is_female_only = is_artist_female_only(music_id)
+
+    # 고음의 범위
+    # 남 : G4 (솔): 약 392.00 Hz 이상 // 여 : E5 (미): 약 659.25 Hz 이상
+    HIGH_THRESHOLD = 659.25 if is_female_only else 392.00
+    count_high_pitch = np.count_nonzero(pitchs[pitchs >= HIGH_THRESHOLD])
+
+    # 저음의 범위
+    # 남 : A2 (라): 약 110 Hz // 여 : A3 (라): 약 220.00 Hz
+    LOW_THRESHOLD = 220.00 if is_female_only else 110.00
+    count_low_pitch = np.count_nonzero(pitchs[pitchs <= LOW_THRESHOLD])
+
+    count_all_pitch = np.count_nonzero(pitchs)
+
+    # 고음/저음 비율
+    high_pitch_ratio = count_high_pitch / count_all_pitch
+    low_pitch_ratio = count_low_pitch / count_all_pitch
+
+    update_music_analysis(music_id, highest_pitch, lowest_pitch, high_pitch_ratio, low_pitch_ratio)
     return
 
 
@@ -155,6 +173,17 @@ def save_pitch_audio(music_id, final_outputs, path):
     filename = 'output_audio.wav'
     write(path + f'{music_id}/' + filename, sampling_rate, audio_signal)
     return
+
+
+# 직접 분석 결과 xlsx 파일 업로드 후 분석만 실행
+def load_pitch(music_id, path):
+    # 저장된 xlsx 파일 DataFrame으로 불러오기
+    df = pd.read_excel(path + f'{music_id}/pitch.xlsx')
+
+    # 재분석을 진행하기 위해 튜플 리스트로 바꿔 반환
+    final_outputs = [(i, t, p, d) for i, t, p, d in
+                     zip(df['index'].tolist(), df['time'].tolist(), df['pitch'].tolist(), df['deleted'].tolist())]
+    return final_outputs
 
 
 # 이상치 Pitch 값 하나를 삭제
@@ -230,8 +259,11 @@ def merge_pitch_values(pitch_output):
     return merged_values
 
 
+# 소리 크기가 작은 부분을 0으로 만들기
 def filter_silence(values, silence_mask):
-    # 소리 크기가 작은 부분을 0으로 만들기
+    if len(values) > len(silence_mask):
+        silence_mask = np.pad(silence_mask, (0, len(values) - len(silence_mask)), 'constant', constant_values=0)
+
     return [x if silence_mask[i] == 1 else 0 for i, x in enumerate(values)]
 
 
