@@ -9,6 +9,7 @@ from scipy.io import wavfile
 from scipy.io.wavfile import write
 from pydub import AudioSegment
 
+from pitch_converter import PitchConverter
 from database import update_music_analysis, is_artist_female_only
 
 EXPECTED_SAMPLE_RATE = 16000
@@ -122,13 +123,13 @@ def analysis_music(music_id, final_outputs):
     is_female_only = is_artist_female_only(music_id)
 
     # 고음의 범위
-    # 남 : G4 (솔): 약 392.00 Hz 이상 // 여 : E5 (미): 약 659.25 Hz 이상
-    HIGH_THRESHOLD = 659.25 if is_female_only else 392.00
+    # 남 : E4 (미): 약 329.63 Hz 이상 // 여 : C5 (도): 약 523.25 Hz 이상
+    HIGH_THRESHOLD = 523.25 if is_female_only else 329.63
     count_high_pitch = np.count_nonzero(pitchs[pitchs >= HIGH_THRESHOLD])
 
     # 저음의 범위
-    # 남 : A2 (라): 약 110 Hz // 여 : A3 (라): 약 220.00 Hz
-    LOW_THRESHOLD = 220.00 if is_female_only else 110.00
+    # 남 : A2 (라): 약 110 Hz // 여 : D4 (레): 약 293.66 Hz
+    LOW_THRESHOLD = 293.66 if is_female_only else 110.00
     count_low_pitch = np.count_nonzero(pitchs[pitchs <= LOW_THRESHOLD])
 
     count_all_pitch = np.count_nonzero(pitchs)
@@ -137,9 +138,14 @@ def analysis_music(music_id, final_outputs):
     high_pitch_ratio = count_high_pitch / count_all_pitch
     low_pitch_ratio = count_low_pitch / count_all_pitch
 
-    update_music_analysis(music_id, highest_pitch, lowest_pitch, high_pitch_ratio, low_pitch_ratio)
-    return
+    # Pitch 평균
+    sum = np.sum(pitchs)
+    pitch_avg = sum / count_all_pitch
 
+    pitch_stat = build_stat_string(pitchs, count_all_pitch)
+
+    update_music_analysis(music_id, highest_pitch, lowest_pitch, high_pitch_ratio, low_pitch_ratio, pitch_avg, pitch_stat)
+    return
 
 # 예측된 음을 다시 오디오로 바꾸기 (관리자 확인용)
 def save_pitch_audio(music_id, final_outputs, path):
@@ -286,3 +292,27 @@ def value_to_hertz(values):
 def zero_to_nan(values):
     # 0을 nan으로 변환
     return [float('nan') if x == 0 else x for x in values]
+
+def build_stat_string(pitchs, count_all_pitch):
+    stat = dict()
+
+    scale = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
+    octave = ['2', '3', '4', '5', '6']
+
+    for ot in octave:
+        if ot != '6':
+            for s in scale:
+                stat[s+ot] = 0
+        else:
+            for s in scale[0:2]:
+                stat[s+ot] = 0
+
+    for p in pitchs:
+        if p != 0:
+            pitch_string = PitchConverter.freq_to_pitch(p)
+            stat[pitch_string] += 1
+
+    for k, v in stat.items():
+        stat[k] = v / count_all_pitch
+
+    return stat
