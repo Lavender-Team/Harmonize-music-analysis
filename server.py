@@ -1,4 +1,5 @@
 from kafka import KafkaConsumer
+from kafka import KafkaProducer
 
 import json
 from music_analysis import *
@@ -14,7 +15,9 @@ consumer = KafkaConsumer(
     consumer_timeout_ms=1000                                        # 데이터를 기다리는 최대 시간
 )
 
-info('[Start] consumer started')
+producer = KafkaProducer(bootstrap_servers=['localhost:9092'])
+
+info('[Start] consumer and producer started')
 
 load_model()
 info('[Model] SPICE model loaded')
@@ -77,6 +80,25 @@ try:
 
                         save_pitch_audio(request['music_id'], final_outputs, request['path'])
                         info(f"[Audio] Music({request['music_id']}) output audio re-save completed")
+
+                    elif request['command'] == 'ping':
+                        # 모델 상태 확인
+
+                        # 응답을 위한 correlationId 확인
+                        correlation_id = None
+                        for header in message.headers:
+                            if header[0] == 'kafka_correlationId':
+                                correlation_id = header[1]
+                                break
+
+                        if correlation_id is None:
+                            info(" [Kafka] No correlation id found")
+                            continue
+
+                        headers = [('kafka_correlationId', correlation_id)]
+
+                        producer.send('musicAnalysisReply', value=b'pong', headers=headers)
+
 
         # else:
         #    print("메시지 없음, 계속 대기 중...")
